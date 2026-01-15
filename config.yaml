@@ -1,0 +1,63 @@
+# Auto-Balatro Configuration
+
+capture:
+  # Target FPS for screen capture (10 is enough for game state detection)
+  target_fps: 10
+  # Window title to search for
+  window_title: "Balatro"
+  # Use dxcam for Windows (faster) or mss (cross-platform)
+  use_dxcam: false
+
+vision:
+  # Directory containing template images
+  template_dir: "data/templates"
+  # Minimum confidence threshold for template matching
+  confidence_threshold: 0.8
+  # Enable grayscale matching (faster)
+  grayscale: true
+  # Multi-scale factors for resolution independence
+  scale_factors: [0.8, 0.9, 1.0, 1.1, 1.2]
+
+game:
+  # Base resolution for normalized coordinates
+  base_resolution:
+    width: 1920
+    height: 1080
+  # Maximum hand size
+  max_hand_size: 8
+  # Maximum cards to select for play/discard
+  max_selection: 5
+
+agent:
+  # Path to save/load trained models
+  model_path: "models/balatro_ppo.zip"
+  # Training hyperparameters
+  training:
+    total_timesteps: 1000000
+    learning_rate: 0.0003
+    batch_size: 64
+    n_steps: 2048
+    n_epochs: 10
+    gamma: 0.99
+    gae_lambda: 0.95
+    clip_range: 0.2
+    ent_coef: 0.01
+  # Curriculum learning settings
+  curriculum:
+    enabled: true
+    start_ante: 1
+    max_ante: 8
+
+executor:
+  # Delay between clicks (seconds)
+  click_delay: 0.1
+  # Wait time for animations (seconds)
+  animation_wait: 0.5
+  # Enable PyAutoGUI failsafe (move to corner to stop)
+  failsafe: true
+  # Verify state after each action
+  verify_actions: true
+
+logging:
+  level: INFO
+  file: "logs/auto_balatro.log"

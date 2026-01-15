@@ -1,0 +1,24 @@
+# Core CV
+numpy>=1.24.0
+opencv-python>=4.8.0
+mss>=9.0.0
+pyautogui>=0.9.54
+pywin32>=306
+
+# Windows-only high-performance capture (optional)
+# dxcam>=0.0.5
+
+# Machine Learning (MaskablePPO for action masking)
+torch>=2.0.0
+stable-baselines3>=2.1.0
+sb3-contrib>=2.1.0
+gymnasium>=0.29.0
+tensorboard>=2.14.0
+
+# Utilities
+pyyaml>=6.0
+pillow>=10.0.0
+
+# Development
+pytest>=7.0.0
+pytest-cov>=4.0.0

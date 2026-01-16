@@ -1,6 +1,46 @@
-"""Action executor module for Auto-Balatro."""
+"""Action executor module for Auto-Balatro.
 
-from .mouse import MouseController
-from .actions import ActionExecutor
+Provides mouse control, game action execution, and coordination
+for automated game interaction.
+"""
 
-__all__ = ["MouseController", "ActionExecutor"]
+from .mouse import (
+    Point,
+    Region,
+    MouseController,
+    SafeMouseController,
+)
+from .actions import (
+    GameAction,
+    UILayout,
+    ActionResult,
+    ActionExecutor,
+)
+from .coordinator import (
+    CoordinatorState,
+    ActionStep,
+    ActionSequence,
+    CoordinatorConfig,
+    ActionCoordinator,
+    GameController,
+)
+
+__all__ = [
+    # Mouse control
+    "Point",
+    "Region",
+    "MouseController",
+    "SafeMouseController",
+    # Actions
+    "GameAction",
+    "UILayout",
+    "ActionResult",
+    "ActionExecutor",
+    # Coordination
+    "CoordinatorState",
+    "ActionStep",
+    "ActionSequence",
+    "CoordinatorConfig",
+    "ActionCoordinator",
+    "GameController",
+]

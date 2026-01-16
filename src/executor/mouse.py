@@ -7,25 +7,13 @@ interacting with the Balatro game window.
 from __future__ import annotations
 
 import logging
+import math
 import random
 import time
 from dataclasses import dataclass
 from typing import TYPE_CHECKING
 
-# Lazy import pyautogui to allow testing without X11
-_pyautogui = None
-
-
-def _get_pyautogui():
-    """Lazy load pyautogui."""
-    global _pyautogui
-    if _pyautogui is None:
-        import pyautogui
-        pyautogui.FAILSAFE = True  # Move to corner to abort
-        pyautogui.PAUSE = 0.05  # Small delay between actions
-        _pyautogui = pyautogui
-    return _pyautogui
-
+from src.executor.input_backend import InputBackend, MockInputBackend, create_backend
 
 if TYPE_CHECKING:
     pass
@@ -48,6 +36,10 @@ class Point:
     def offset(self, dx: int, dy: int) -> Point:
         """Return a new point offset by dx and dy."""
         return Point(self.x + dx, self.y + dy)
+
+    def distance_to(self, other: Point) -> float:
+        """Calculate distance to another point."""
+        return math.sqrt((other.x - self.x) ** 2 + (other.y - self.y) ** 2)
 
 
 @dataclass
@@ -109,6 +101,7 @@ class MouseController:
         bounds: Region | None = None,
         speed_factor: float = 1.0,
         humanize: bool = True,
+        backend: InputBackend | None = None,
     ) -> None:
         """Initialize mouse controller.
 
@@ -116,18 +109,26 @@ class MouseController:
             bounds: Screen region to constrain mouse movement.
             speed_factor: Movement speed multiplier (lower = faster).
             humanize: Add human-like movement variations.
+            backend: Input backend (auto-created if None).
         """
         self.bounds = bounds
         self.speed_factor = speed_factor
         self.humanize = humanize
+        self._backend = backend or create_backend("auto")
 
         # Track last position for movement calculations
         self._last_pos: Point | None = None
 
         logger.info(
             f"MouseController initialized, bounds={bounds}, "
-            f"speed={speed_factor}, humanize={humanize}"
+            f"speed={speed_factor}, humanize={humanize}, "
+            f"backend={type(self._backend).__name__}"
         )
+
+    @property
+    def backend(self) -> InputBackend:
+        """Get the input backend."""
+        return self._backend
 
     def get_position(self) -> Point:
         """Get current mouse position.
@@ -135,8 +136,7 @@ class MouseController:
         Returns:
             Current mouse position as Point.
         """
-        pyautogui = _get_pyautogui()
-        x, y = pyautogui.position()
+        x, y = self._backend.get_position()
         return Point(x, y)
 
     def _check_bounds(self, target: Point) -> Point:
@@ -193,9 +193,7 @@ class MouseController:
         Returns:
             Duration in seconds.
         """
-        import math
-
-        distance = math.sqrt((end.x - start.x) ** 2 + (end.y - start.y) ** 2)
+        distance = start.distance_to(end)
 
         # Base duration: ~0.1s per 100 pixels, with minimum
         base_duration = max(0.1, distance / 1000)
@@ -233,13 +231,7 @@ class MouseController:
             duration = self._calculate_duration(current, target)
 
         # Move with easing
-        pyautogui = _get_pyautogui()
-        pyautogui.moveTo(
-            target.x,
-            target.y,
-            duration=duration,
-            tween=pyautogui.easeOutQuad,
-        )
+        self._backend.move_to(target.x, target.y, duration=duration)
 
         self._last_pos = target
         logger.debug(f"Moved to {target}")
@@ -286,10 +278,9 @@ class MouseController:
         if self.humanize:
             time.sleep(random.uniform(0.02, 0.08))
 
-        pyautogui = _get_pyautogui()
-        pyautogui.click(button=button, clicks=clicks, interval=interval)
-
         pos = self.get_position()
+        self._backend.click(pos.x, pos.y, button=button, clicks=clicks)
+
         logger.debug(f"Clicked {button} at {pos}")
 
     def double_click(
@@ -301,7 +292,7 @@ class MouseController:
         Args:
             target: Position to double-click.
         """
-        self.click(target, clicks=2, interval=0.1)
+        self.click(target, clicks=2)
 
     def right_click(
         self,
@@ -336,13 +327,7 @@ class MouseController:
         if duration is None:
             duration = self._calculate_duration(current, target) * 1.5
 
-        pyautogui = _get_pyautogui()
-        pyautogui.drag(
-            target.x - current.x,
-            target.y - current.y,
-            duration=duration,
-            button=button,
-        )
+        self._backend.drag_to(target.x, target.y, duration=duration, button=button)
 
         self._last_pos = target
         logger.debug(f"Dragged to {target}")
@@ -361,9 +346,9 @@ class MouseController:
         if target is not None:
             self.move_to(target)
 
-        pyautogui = _get_pyautogui()
-        pyautogui.scroll(clicks)
-        logger.debug(f"Scrolled {clicks} at {self.get_position()}")
+        pos = self.get_position()
+        self._backend.scroll(clicks, pos.x, pos.y)
+        logger.debug(f"Scrolled {clicks} at {pos}")
 
     def wait(self, seconds: float | None = None) -> None:
         """Wait for a period with optional randomization.
@@ -391,6 +376,7 @@ class SafeMouseController(MouseController):
         speed_factor: float = 1.0,
         humanize: bool = True,
         confirm_clicks: bool = True,
+        backend: InputBackend | None = None,
     ) -> None:
         """Initialize safe mouse controller.
 
@@ -399,8 +385,9 @@ class SafeMouseController(MouseController):
             speed_factor: Movement speed multiplier.
             humanize: Add human-like variations.
             confirm_clicks: Verify position before clicking.
+            backend: Input backend.
         """
-        super().__init__(bounds, speed_factor, humanize)
+        super().__init__(bounds, speed_factor, humanize, backend)
         self.confirm_clicks = confirm_clicks
 
     def click(
@@ -438,4 +425,13 @@ class SafeMouseController(MouseController):
                     )
                     return
 
-        super().click(None, button, clicks, interval)
+        # Use parent click but pass None since we already moved
+        if target is not None:
+            self.move_to(target)
+
+        if self.humanize:
+            time.sleep(random.uniform(0.02, 0.08))
+
+        pos = self.get_position()
+        self._backend.click(pos.x, pos.y, button=button, clicks=clicks)
+        logger.debug(f"Clicked {button} at {pos}")
